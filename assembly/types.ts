@@ -24,6 +24,7 @@ export enum StmtType {
   ExpressionStmt,
   PrintStmt,
   VarStmt,
+  VarExpressionStmt,
   BlockStmt,
   ClassStmt,
   IfStmt,

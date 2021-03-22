@@ -32,6 +32,9 @@ export abstract class Expr {
 
 export class Stmt {
     constructor(public type: StmtType) { }
+    toString(): string {
+        return '';
+    }
 }
 
 export class BinaryExpr extends Expr {
@@ -212,11 +215,19 @@ export class ExpressionStmt extends Stmt {
     constructor(public expression: Expr) {
         super(StmtType.ExpressionStmt)
     }
+
+    toString(): string {
+        return 'ExpressionStmt';
+    }
 }
 
 export class PrintStmt extends Stmt {
     constructor(public expression: Expr) {
         super(StmtType.PrintStmt)
+    }
+
+    toString(): string {
+        return 'PrintStmt';
     }
 }
 
@@ -224,11 +235,29 @@ export class VarStmt extends Stmt {
     constructor(public name: Token, public initializer: Expr | null) {
         super(StmtType.VarStmt)
     }
+
+    toString(): string {
+        return 'VarStmt';
+    }
+}
+
+export class VarExpressionStmt extends Stmt {
+    constructor(public name: Token, public body: BlockStmt) {
+        super(StmtType.VarExpressionStmt)
+    }
+
+    toString(): string {
+        return 'VarExpressionStmt';
+    }
 }
 
 export class BlockStmt extends Stmt {
     constructor(public statements: Stmt[]) {
         super(StmtType.BlockStmt)
+    }
+
+    toString(): string {
+        return 'BlockStmt';
     }
 }
 
@@ -236,11 +265,19 @@ export class ClassStmt extends Stmt {
     constructor(public name: TokenType, public superclass: VariableExpr | null, public methods: FunctionStmt[]) {
         super(StmtType.ClassStmt)
     }
+
+    toString(): string {
+        return 'ClassStmt';
+    }
 }
 
 export class IfStmt extends Stmt {
     constructor(public condition: Expr, public thenBranch: Stmt, public elseBranch: Stmt | null) {
         super(StmtType.IfStmt)
+    }
+
+    toString(): string {
+        return 'IfStmt';
     }
 }
 
@@ -248,16 +285,28 @@ export class WhileStmt extends Stmt {
     constructor(public condition: Expr, public body: Stmt) {
         super(StmtType.WhileStmt)
     }
+
+    toString(): string {
+        return 'WhileStmt';
+    }
 }
 
 export class FunctionStmt extends Stmt {
     constructor(public name: Token, public params: Token[], public body: Stmt[]) {
         super(StmtType.FunctionStmt)
     }
+
+    toString(): string {
+        return 'FunctionStmt';
+    }
 }
 
 export class ReturnStmt extends Stmt {
     constructor(public keyword: Token, public value: Expr | null) {
         super(StmtType.ReturnStmt)
+    }
+
+    toString(): string {
+        return 'ReturnStmt';
     }
 }

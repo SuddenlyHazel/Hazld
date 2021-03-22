@@ -1,6 +1,6 @@
 import {
     BinaryExpr, Expr, Stmt, GroupingExpr, LiteralExpr, LogicalExpr, UnaryExpr,
-    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr
+    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr, VarExpressionStmt
 } from "../ast/ast_types";
 import {
     LiteralTypes, Token, TokenType, ExprType, StmtType
@@ -15,6 +15,8 @@ export class Interpreter extends BaseInterpreter {
 
     constructor() {
         super(new Environment());
+        this.globals.define(foo.identifier, foo);
+
         this.environment = this.globals;
     }
 
@@ -36,6 +38,9 @@ export class Interpreter extends BaseInterpreter {
                 break;
             case StmtType.VarStmt:
                 this.varStmt(<VarStmt>stmt);
+                break;
+            case StmtType.VarExpressionStmt:
+                result = this.evaluateVarExpression(<VarExpressionStmt>stmt);
                 break;
             case StmtType.BlockStmt:
                 result = this.evaluateBlock((<BlockStmt>stmt).statements, new Environment(this.environment))
@@ -88,6 +93,15 @@ export class Interpreter extends BaseInterpreter {
         }
     }
 
+    evaluateVarExpression(stmt : VarExpressionStmt) : EvaluationResult | null {
+        let result = this.evaluateBlock(stmt.body.statements, new Environment(this.environment));
+        if (result == null) {
+            trace("Panic! No result returned from variable expression body");
+        };
+        this.environment.define(stmt.name.lexme, <EvaluationResult>result);
+        return result;
+    };
+
     evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null {
         var result : EvaluationResult | null = null;
         const previousEnv = this.environment;
@@ -100,13 +114,15 @@ export class Interpreter extends BaseInterpreter {
                 break;
             }
         };
-
+        this.environment.debug();
         this.environment = previousEnv;
+        this.environment.debug();
         return result;
     };
 
     printStmt(stmt: PrintStmt): void {
         // Hazel TODO make this better
+        this.environment.debug();
         trace("Print is: " + this.evaluate(stmt.expression).toString());
     }
 

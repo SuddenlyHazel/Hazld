@@ -23,6 +23,14 @@ export class Environment {
     constructor(public parentScope: Environment | null = null) {
     }
 
+    debug(): void {
+        let k = this.memory.keys();
+        for (let index = 0; index < k.length; index++) {
+            const key = k[index];
+            trace("key="+key+" value="+this.memory.get(key).toString());
+        }
+    }
+
     isInitd(identifer: string): bool {
         return this.memory.has(identifer);
     }

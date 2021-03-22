@@ -1,10 +1,12 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, FunctionStmt, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, Stmt, UnaryExpr, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, FunctionStmt, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { ExprType, StmtType, Token, TokenType, ValuedToken } from "./types";
 
 export class Parser {
     current: i32 = 0;
     constructor(public tokens: Array<Token>) {
-
+        for (let index = 0; index < tokens.length; index++) {
+            const element = tokens[index];
+        }
     }
 
     parse(): Stmt[] {
@@ -134,6 +136,12 @@ export class Parser {
     variableDeclarationStatement(): Stmt {
         const name = this.consume(TokenType.IDENTIFIER, "Expect variable name");
         if (this.match([TokenType.EQUAL]) && name != null) {
+            if (this.peek().type == TokenType.LEFT_BRACE) {
+                this.consume(TokenType.LEFT_BRACE, "Need left brace!");
+                const init = this.block();
+                return new VarExpressionStmt(name, new BlockStmt(init));
+            }
+
             const initializer = this.expression();
             this.consume(TokenType.SEMICOLON, "Expect ; after variable declaration")
             return new VarStmt(name, initializer);
@@ -343,7 +351,7 @@ export class Parser {
             return new GroupingExpr(expr);
         }
 
-        trace('Panic!!');
+        trace('Panic!! ' + this.peek().toString());
         // Hazel TODO ... Error somehow
         return new LiteralExpr<boolean>(false, 'false');
     }

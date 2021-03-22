@@ -6,6 +6,7 @@ const arraySize = width * height;
 
 const pageSize = 64 * 1024;
 const nPages = Math.ceil(arraySize / pageSize);
+console.log("With N="+pageSize+" pages");
 const memory = new WebAssembly.Memory({ 
     initial: nPages 
   });
