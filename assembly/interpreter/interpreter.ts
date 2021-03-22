@@ -5,16 +5,17 @@ import {
 import {
     LiteralTypes, Token, TokenType, ExprType, StmtType
 } from "../types";
-import {Environment, BaseInterpreter, HazldCallable, EvaluationResult, NumberResult, StringResult, BoolResult, ResultType} from "./interpreter_types";
+import { Environment, BaseInterpreter, HazldCallable, EvaluationResult, NumberResult, StringResult, BoolResult, ResultType, HazldFunction } from "./interpreter_types";
+
+import { foo } from "./builtins/index";
 
 export class Interpreter extends BaseInterpreter {
     // Stash built-ins,
-    private globals : Environment = new Environment();
-
-    private environment : Environment = this.globals;
+    private environment: Environment;
 
     constructor() {
-         super();
+        super(new Environment());
+        this.environment = this.globals;
     }
 
     interpret(statements: Stmt[]): void {
@@ -24,41 +25,37 @@ export class Interpreter extends BaseInterpreter {
         }
     }
 
-    evaluateStatement(stmt: Stmt): void {
+    evaluateStatement(stmt: Stmt): EvaluationResult | null {
+        let result : EvaluationResult | null = null;
         switch (stmt.type) {
             case StmtType.ExpressionStmt:
-                trace("Handling Expression");
                 this.evaluate((<ExpressionStmt>(stmt)).expression);
                 break;
             case StmtType.PrintStmt:
-                trace("Handling Print");
                 this.printStmt(<PrintStmt>(stmt));
                 break;
             case StmtType.VarStmt:
-                trace("Handling Var");
                 this.varStmt(<VarStmt>stmt);
                 break;
             case StmtType.BlockStmt:
-                trace("We're in a block!!")
-                this.blockStmt(<BlockStmt>stmt, new Environment(this.environment))
+                result = this.evaluateBlock((<BlockStmt>stmt).statements, new Environment(this.environment))
                 break;
             case StmtType.IfStmt:
-                trace("Handling IF");
-                this.ifStmt(<IfStmt>stmt);
+                result = this.ifStmt(<IfStmt>stmt);
                 break;
             case StmtType.WhileStmt:
-                trace("Handling While");
-                this.whileStmt(<WhileStmt>(stmt));
+                result = this.whileStmt(<WhileStmt>(stmt));
                 break;
             case StmtType.FunctionStmt:
+                this.functionStmt(<FunctionStmt>stmt);
                 break;
             case StmtType.ReturnStmt:
-                trace("Handling Return");
-                this.returnStmt(<ReturnStmt>(stmt));
+                result = this.returnStmt(<ReturnStmt>(stmt));
                 break;
             case StmtType.ClassStmt:
                 break;
         }
+        return result;
     }
 
     evaluate(expr: Expr): EvaluationResult {
@@ -88,18 +85,24 @@ export class Interpreter extends BaseInterpreter {
         if (stmt.initializer != null) {
             const val = this.evaluate(<Expr>stmt.initializer);
             this.environment.define(stmt.name.lexme, val);
-            trace("Init var name " + stmt.name.lexme + " with value " + val.toString())
         }
     }
 
-    blockStmt(stmt: BlockStmt, localScope : Environment): void {
+    evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null {
+        var result : EvaluationResult | null = null;
         const previousEnv = this.environment;
         this.environment = localScope;
-        for (let index = 0; index < stmt.statements.length; index++) {
-            const statement = stmt.statements[index];
-            this.evaluateStatement(statement);
-        }
+        for (let index = 0; index < stmts.length; index++) {
+            const statement = stmts[index];
+            const resultMaybe = this.evaluateStatement(statement);
+            if (resultMaybe != null) {
+                result = <EvaluationResult>resultMaybe;
+                break;
+            }
+        };
+
         this.environment = previousEnv;
+        return result;
     };
 
     printStmt(stmt: PrintStmt): void {
@@ -107,55 +110,66 @@ export class Interpreter extends BaseInterpreter {
         trace("Print is: " + this.evaluate(stmt.expression).toString());
     }
 
-    ifStmt(stmt: IfStmt): void {
+    ifStmt(stmt: IfStmt): EvaluationResult | null {
         if (this.isTruthy(this.evaluate(stmt.condition))) {
-            this.evaluateStatement(stmt.thenBranch);
+            return this.evaluateStatement(stmt.thenBranch);
         } else if (stmt.elseBranch != null) {
-            this.evaluateStatement(<Stmt>stmt.elseBranch);
+            return this.evaluateStatement(<Stmt>stmt.elseBranch);
         }
+        return null;
     }
 
-    whileStmt(stmt: WhileStmt): void {
+    whileStmt(stmt: WhileStmt): EvaluationResult | null {
         while (this.isTruthy(this.evaluate(stmt.condition))) {
-            this.evaluateStatement(stmt.body);
+            const valueMaybe = this.evaluateStatement(stmt.body);
+            if (valueMaybe != null) {
+                return valueMaybe
+            }
         }
+        return null;
     }
 
-    returnStmt(stmt: ReturnStmt): void {
+    functionStmt(stmt: FunctionStmt): void {
+        let func = new HazldFunction(stmt, this.environment);
+        this.environment.define(stmt.name.lexme, func);
+    };
+
+    returnStmt(stmt: ReturnStmt): EvaluationResult | null {
         if (stmt.value != null) {
-            this.evaluate(<Expr>stmt.value)
+            return this.evaluate(<Expr>stmt.value)
         }
-        trace("Shouldnt be here!")
+        return new EvaluationResult();
     };
 
     isTruthy(expr: EvaluationResult): boolean {
         return expr.isTruthy();
     };
 
-    handleCall(expr : CallExpr) : EvaluationResult {
-        const callee = this.evaluate(expr.callee);
+    handleCall(expr: CallExpr): EvaluationResult {
+        const calleeMaybe = this.evaluate(expr.callee);
 
-        const args : EvaluationResult[] = [];
+        const args: EvaluationResult[] = [];
         for (let index = 0; index < expr.argument.length; index++) {
             args.push(this.evaluate(expr.argument[index]));
         }
 
-       // Call Callee result here!!
-       if (!(callee instanceof HazldCallable)) {
-           trace("Can only call functions and methods!")
-           return new EvaluationResult();
-       }
+        // Call Callee result here!!
+        if (!(calleeMaybe instanceof HazldCallable)) {
+            trace("Can only call functions and methods!")
+            return new EvaluationResult();
+        }
 
-       if (args.length != callee.arity) {
-        trace("Caller did not provide correct number of arguments!")
-        return new EvaluationResult();
-       }
+        const callee : HazldCallable = <HazldCallable>calleeMaybe;
+        if (args.length != callee.arity) {
+            trace("Caller did not provide correct number of arguments!")
+            return new EvaluationResult();
+        }
 
-       return (<HazldCallable>callee).call(this, args);
-    }; 
+        return (<HazldCallable>callee).call(this, args);
+    };
 
-    handleVariable(expr : VariableExpr) : EvaluationResult {
-        return this.environment.get(expr.name);
+    handleVariable(expr: VariableExpr): EvaluationResult {
+        return <EvaluationResult>this.environment.get(expr.name);
     }
 
     handleLogical(expr: LogicalExpr): EvaluationResult {

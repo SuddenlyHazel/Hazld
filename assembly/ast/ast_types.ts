@@ -15,6 +15,9 @@ export abstract class Visitor {
     abstract visitVariableExpr(v: VariableExpr): string;
 }
 
+export class ExprWrapper {
+}
+
 export abstract class Expr {
     constructor(public type: ExprType) {
     }
@@ -248,13 +251,13 @@ export class WhileStmt extends Stmt {
 }
 
 export class FunctionStmt extends Stmt {
-    constructor(public name: TokenType, public params: TokenType[], public body: Stmt) {
+    constructor(public name: Token, public params: Token[], public body: Stmt[]) {
         super(StmtType.FunctionStmt)
     }
 }
 
 export class ReturnStmt extends Stmt {
-    constructor(public name: TokenType, public keyword: TokenType, public value: Expr | null) {
+    constructor(public keyword: Token, public value: Expr | null) {
         super(StmtType.ReturnStmt)
     }
 }

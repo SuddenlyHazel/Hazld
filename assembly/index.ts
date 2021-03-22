@@ -46,7 +46,6 @@ class Scanner {
   constructor(src: String) {
     src.length;
     this.source = src;
-    trace("Code is " + this.source);
   }
 
   scanAllToken(): Array<Token> {
@@ -162,7 +161,6 @@ class Scanner {
   }
 
   number(): void {
-    trace("Trying to build number value!")
     while (this.isDigit(this.peek())) this.advance();
 
     if (this.peek() == '.' && this.isDigit(this.peekNext())) {
@@ -185,8 +183,8 @@ class Scanner {
   }
 
   match(v: string): bool {
-    if (this.current >= this.source.length) return false;
-    if (this.source.charAt(this.current) !== v) return false;
+    if (this.isAtEnd()) return false;
+    if (this.source.charAt(this.current) != v) return false;
     this.current += 1;
     return true;
   }

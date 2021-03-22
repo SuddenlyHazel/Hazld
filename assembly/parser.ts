@@ -1,4 +1,4 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, Stmt, UnaryExpr, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, FunctionStmt, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, Stmt, UnaryExpr, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { ExprType, StmtType, Token, TokenType, ValuedToken } from "./types";
 
 export class Parser {
@@ -14,9 +14,12 @@ export class Parser {
         };
         return statements;
     }
-    // Check for variable declarations
+    // Check for declarations [Var, Func, Class]
     declaration(): Stmt {
-        if (this.match([TokenType.VAR])) {
+        if (this.match([TokenType.FUN])){
+            return this.functionDeclarationStatement()
+        }
+        else if (this.match([TokenType.VAR])) {
             return this.variableDeclarationStatement();
         }
         return this.statement();
@@ -27,7 +30,6 @@ export class Parser {
         if (this.match([TokenType.PRINT])) {
             return this.printStatement();
         } else if (this.match([TokenType.LEFT_BRACE])) {
-            trace("Building block")
             return new BlockStmt(this.block())
         } else if (this.match([TokenType.IF])) {
             return this.if();
@@ -35,10 +37,23 @@ export class Parser {
             return this.while();
         } else if (this.match([TokenType.FOR])) {
             return this.for();
+        } else if (this.match([TokenType.RETURN])) {
+            return this.return();
         }
 
         return this.expressionStatement();
     }
+
+    return() : Stmt {
+        const keyword = this.previous();
+        var value : Expr | null = null;
+        if (!this.check(TokenType.SEMICOLON)) {
+            value = this.expression();
+        }
+        this.consume(TokenType.SEMICOLON, "Expect ; after return value");
+        return new ReturnStmt(keyword, value);
+    }
+
     // Build a for
     for(): Stmt {
         this.consume(TokenType.LEFT_PAREN, "Expect ( after for");
@@ -85,11 +100,11 @@ export class Parser {
         this.consume(TokenType.RIGHT_PAREN, "Expect ) after condition");
 
         const thenBranch = this.statement();
+        var elseBranch : Stmt | null = null;
         if (this.match([TokenType.ELSE])) {
-            const elseBranch = this.statement();
-            return new IfStmt(condition, thenBranch, elseBranch);
+            elseBranch = this.statement();
         }
-        return new IfStmt(condition, thenBranch, null);
+        return new IfStmt(condition, thenBranch, elseBranch);
     }
 
     // build a while
@@ -127,6 +142,30 @@ export class Parser {
         return new Stmt(StmtType.ReturnStmt);
     }
 
+    // Build a function declaration
+    functionDeclarationStatement(): Stmt {
+        const name = this.consume(TokenType.IDENTIFIER, "Expect Function name");
+        if (name == null) {
+            return new Stmt(StmtType.ExpressionStmt);
+        }
+
+        this.consume(TokenType.LEFT_PAREN, "Expect ( after function name");
+        // Build args
+        const params : Token[] = [];
+        if (!this.check(TokenType.RIGHT_PAREN)) {
+            do {
+                const tokenMaybe = this.consume(TokenType.IDENTIFIER, "Expected Param name");
+                if (tokenMaybe != null) params.push(<Token>tokenMaybe);
+            } while (this.match([TokenType.COMMA]))
+        }
+
+        this.consume(TokenType.RIGHT_PAREN, "Expected ) after params");
+        this.consume(TokenType.LEFT_BRACE, "Expected { before body");
+        const body = this.block();
+
+        return new FunctionStmt(name, params, body);
+    }
+
     // Build print statement
     printStatement(): Stmt {
         const value = this.expression();
@@ -156,9 +195,11 @@ export class Parser {
             if (expr.type == ExprType.VariableExpr) {
                 const name = (<VariableExpr>(expr)).name;
                 return new AssignExpr(name, value);
-            };
+            } else if (expr.type == ExprType.GetExpr) {
+                trace("ahh no gets yet")
+            }
 
-            trace("Panic! invalid assignment");
+            trace("Panic! invalid assignment" + equals.toString());
         }
         return expr;
     }
@@ -200,11 +241,12 @@ export class Parser {
     comparison(): Expr {
         var expr: Expr = this.term();
 
-        while (this.match([TokenType.GREATER, TokenType.LESS, TokenType.LESS_EQUAL])) {
+        while (this.match([TokenType.GREATER, TokenType.LESS, TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL])) {
             var operator = this.previous();
             var right = this.term();
             expr = new BinaryExpr(expr, operator.type, right);
         }
+
         return expr;
     }
 
@@ -213,7 +255,6 @@ export class Parser {
         var expr = this.factor();
 
         while (this.match([TokenType.MINUS, TokenType.PLUS])) {
-            trace("Match Plus or Minus")
             var operator = this.previous();
             var right = this.factor();
             expr = new BinaryExpr(expr, operator.type, right);
@@ -226,7 +267,6 @@ export class Parser {
         var expr: Expr = this.unary();
 
         while (this.match([TokenType.STAR, TokenType.SLASH])) {
-            trace("Match star or slash")
             var operator = this.previous();
             var right = this.unary();
             expr = new BinaryExpr(expr, operator.type, right);
@@ -259,11 +299,10 @@ export class Parser {
     }
 
     finishCall(callee: Expr): Expr {
-        const args : Expr[] = [];
+        var allArgs : Expr[] = [];
         if (!this.check(TokenType.RIGHT_PAREN)) {
             do {
-                args.push(this.expression());
-                // Hazel TODO make this error on too many args
+                allArgs.push(this.expression());
             } while (this.match([TokenType.COMMA]));
         }
 
@@ -271,8 +310,7 @@ export class Parser {
         if (paren == null) {
             return callee;
         }
-
-        return new CallExpr(callee, paren, args);
+        return new CallExpr(callee, paren, allArgs);
     }   
 
     // Handle Rest of Tokens
@@ -313,9 +351,6 @@ export class Parser {
     consume(type: TokenType, message: string): Token | null {
         if (this.check(type)) return this.advance();
         // Hazel TODO actually panic..
-        
-        trace(message)
-        trace(this.peek().lexme)
         return null;
     }
 
@@ -331,11 +366,6 @@ export class Parser {
 
     check(token: TokenType): boolean {
         if (this.isAtEnd()) return false;
-
-        if (this.peek().type == token) {
-            trace(this.peek().type.toString() + " " + token.toString())
-        }
-
         return this.peek().type == token;
     }
 

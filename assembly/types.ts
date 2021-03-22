@@ -108,6 +108,5 @@ export namespace TokenType {
     constructor(type: TokenType, lexme: string, line: u32, value: T) {
       super(type, lexme, line);
       this.value = value;
-      trace("Built valued token type " + typeof(value))
     }
   }

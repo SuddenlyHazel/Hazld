@@ -5,24 +5,22 @@ import {
 import {
     LiteralTypes, Token, TokenType, ExprType, StmtType
 } from "../types";
+import { Interpreter } from "./interpreter";
 
 export abstract class BaseInterpreter {
+    constructor(public globals : Environment) {}
 
+    abstract evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null;
 }
 
 export enum ResultType {
     NUMBER, BOOLEAN, STRING, NIL,
 }
 
-export abstract class HazldCallable {
-    constructor(public arity : u8) {};
-    abstract call(inter : BaseInterpreter, args : EvaluationResult[]) : EvaluationResult;
-}
+export class Environment {
+    private memory: Map<string, EvaluationResult> = new Map<string, EvaluationResult>();
 
-export class Environment {    
-    private memory : Map<string, EvaluationResult> = new Map<string, EvaluationResult>(); 
-    
-    constructor(public parentScope : Environment | null = null) {
+    constructor(public parentScope: Environment | null = null) {
     }
 
     isInitd(identifer: string): bool {
@@ -33,7 +31,7 @@ export class Environment {
         this.memory.set(identifer, value);
     }
 
-    assign(identifer: string, value : EvaluationResult): void {
+    assign(identifer: string, value: EvaluationResult): void {
         // We have it
         if (this.isInitd(identifer)) {
             this.memory.set(identifer, value);
@@ -44,11 +42,9 @@ export class Environment {
             (<Environment>this.parentScope).assign(identifer, value);
             return;
         };
-
-        trace("Variable not in scope...")
     }
 
-    get(token : Token) : EvaluationResult {
+    get(token: Token): EvaluationResult {
         if (this.isInitd(token.lexme)) {
             return this.memory.get(token.lexme);
         }
@@ -63,8 +59,9 @@ export class Environment {
 
 export class EvaluationResult {
     constructor(public type: ResultType = ResultType.NIL) {
-
+        
     }
+
     isTruthy(): boolean {
         return false;
     }
@@ -78,10 +75,45 @@ export class EvaluationResult {
     }
 };
 
+export abstract class HazldCallable extends EvaluationResult {
+    constructor(public arity: u8) {
+        super();
+    };
+    abstract call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult;
+}
+
+export abstract class BuiltInFunction extends HazldCallable {
+    constructor(public identifier: string, arity: u8) {
+        super(arity);
+    }
+}
+
+export class HazldFunction extends HazldCallable {
+    public name : string;
+    constructor(public declaration: FunctionStmt, public closure: Environment) {
+        super(<u8>declaration.params.length);
+        this.name = declaration.name.lexme;
+    }
+
+    call(inter: BaseInterpreter, args: EvaluationResult[]) : EvaluationResult {
+        // New function scope
+        const env = new Environment(this.closure);
+        // Load all params
+        for (let index = 0; index < this.declaration.params.length; index++) {
+            const argDef = this.declaration.params[index];
+            env.define(argDef.lexme, args[index]);
+        }
+        let valueMaybe = inter.evaluateBlock(this.declaration.body, env);
+        if (valueMaybe != null) {
+            return <EvaluationResult>valueMaybe;
+        }
+        return new EvaluationResult();
+    }
+}
+
 export class NumberResult extends EvaluationResult {
     constructor(public value: f64) {
         super(ResultType.NUMBER);
-        this.trace();
     }
 
     isTruthy(): boolean {

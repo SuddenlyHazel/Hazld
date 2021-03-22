@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node tests",
+    "test": "node --inspect tests",
     "asbuild:untouched": "asc assembly/index.ts --target debug --exportRuntime",
     "asbuild:optimized": "asc assembly/index.ts --target release",
     "asbuild": "npm run asbuild:untouched && npm run asbuild:optimized"
