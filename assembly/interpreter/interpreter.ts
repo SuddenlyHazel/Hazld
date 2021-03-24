@@ -1,6 +1,6 @@
 import {
     BinaryExpr, Expr, Stmt, GroupingExpr, LiteralExpr, LogicalExpr, UnaryExpr,
-    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr, VarExpressionStmt, ClassStmt, GetExpr, SetExpr
+    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr, VarExpressionStmt, ClassStmt, GetExpr, SetExpr, ThisExpr
 } from "../ast/ast_types";
 import {
     LiteralTypes, Token, TokenType, ExprType, StmtType
@@ -87,6 +87,8 @@ export class Interpreter extends BaseInterpreter {
                 return this.handleGet(<GetExpr>expr);
             case ExprType.SetExpr:
                 return this.handleSet(<SetExpr>expr);
+            case ExprType.ThisExpr:
+                return this.handleThis(<ThisExpr>expr);
         }
         return new EvaluationResult();
     }
@@ -162,7 +164,7 @@ export class Interpreter extends BaseInterpreter {
     classStmt(stmt: ClassStmt): EvaluationResult | null {
         this.environment.define(stmt.name.lexme, new EvaluationResult());
 
-        const methods : Map<string, HazldCallable> = new Map();
+        const methods: Map<string, HazldCallable> = new Map();
         for (let index = 0; index < stmt.methods.length; index++) {
             const method = stmt.methods[index];
             methods.set(method.name.lexme, new HazldFunction(method, this.environment));
@@ -206,6 +208,10 @@ export class Interpreter extends BaseInterpreter {
         };
         return (<HazldInstance>objectMaybe).get(expr.name.lexme);
     };
+
+    handleThis(expr: ThisExpr): EvaluationResult {
+        return this.lookupVariable(expr, expr.keyword);
+    }
 
     handleSet(expr: SetExpr): EvaluationResult {
         const objectMaybe = this.evaluate(expr.object);

@@ -2,21 +2,18 @@ const assert = require("assert");
 const myModule = require("..");
 
 const originalStr1 = `
-class Foo {
-  bar() {
-    return "baz";
+
+class Cake {
+  taste() {
+    var adjective = "delicious";
+    print "The " + this.flavor + " cake is " + adjective + "!";
   }
 }
 
-print Foo;
-var a = Foo();
+var cake = Cake();
+cake.flavor = "German chocolate";
+cake.taste(); // Prints "The German chocolate cake is delicious!".
 
-fun doThing() {
-  print "wow!";
-}
-
-a.foo = doThing;
-print a.bar();
 `
 let foo = myModule.__getString(myModule.parse(myModule.__newString(originalStr1)));
 console.log(foo);

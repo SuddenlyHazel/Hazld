@@ -1,4 +1,4 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, ThisExpr, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { BaseInterpreter } from "./interpreter/interpreter_types";
 import { ExprType, StmtType } from "./types";
 
@@ -108,10 +108,13 @@ export class Resolver {
         this.declare(stmt.name.lexme);
         this.define(stmt.name.lexme);
 
+        this.beginScope();
+        this.peekScope().set("this", true); // this is valid within class
         for (let index = 0; index < stmt.methods.length; index++) {
             const methodDec = stmt.methods[index];
             this.resolveFunctionOrMethod(methodDec, FunctionType.METHOD);
         }
+        this.endScope();
     };
 
     resolveFunctionStmt(stmt: FunctionStmt): void {
@@ -164,7 +167,7 @@ export class Resolver {
                 this.debug("NYI");
                 break;
             case ExprType.ThisExpr:
-                this.debug("NYI");
+                this.resolveThisExpr(<ThisExpr>expr);
                 break;
             case ExprType.UnaryExpr:
                 this.resolveUnaryExpr(<UnaryExpr>expr);
@@ -223,6 +226,10 @@ export class Resolver {
     resolveSetExpr(expr: SetExpr): void {
         this.resolveExpr(expr.value);
         this.resolveExpr(expr.object);
+    }
+
+    resolveThisExpr(expr: ThisExpr): void {
+        this.resolveLocal(expr, expr.keyword.lexme);
     }
 
     resolveUnaryExpr(expr: UnaryExpr): void {

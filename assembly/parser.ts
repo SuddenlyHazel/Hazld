@@ -1,4 +1,4 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, ThisExpr, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { ExprType, StmtType, Token, TokenType, ValuedToken } from "./types";
 
 export class Parser {
@@ -367,6 +367,10 @@ export class Parser {
             var expr = this.expression();
             this.consume(TokenType.RIGHT_PAREN, "Expect ') after expression")
             return new GroupingExpr(expr);
+        }
+
+        if (this.match([TokenType.THIS])) {
+            return new ThisExpr(this.previous());
         }
 
         trace('Panic!! ' + this.peek().toString());

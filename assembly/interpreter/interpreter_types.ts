@@ -123,10 +123,10 @@ export class HazldInstance extends EvaluationResult {
     get(name: string): EvaluationResult {
         if (this.properties.has(name)) return this.properties.get(name);
 
-        const funcMaybe = this.klass.findMethod(name);
+        const funcMaybe = <HazldFunction>this.klass.findMethod(name);
 
-        if (funcMaybe != null) return funcMaybe;
-        
+        if (funcMaybe != null) return funcMaybe.bind(this);
+
         return new EvaluationResult(ResultType.NIL);
     }
 
@@ -136,7 +136,7 @@ export class HazldInstance extends EvaluationResult {
 }
 
 export class HazldClass extends HazldCallable {
-    constructor(public name: string, public methods : Map<string, HazldCallable>) {
+    constructor(public name: string, public methods: Map<string, HazldCallable>) {
         super(0);
     }
 
@@ -148,7 +148,7 @@ export class HazldClass extends HazldCallable {
         return new HazldInstance(this);
     }
 
-    findMethod(name : string): HazldCallable | null {
+    findMethod(name: string): HazldCallable | null {
         if (this.methods.has(name)) {
             return this.methods.get(name);
         }
@@ -182,6 +182,13 @@ export class HazldFunction extends HazldCallable {
             return <EvaluationResult>valueMaybe;
         }
         return new EvaluationResult();
+    }
+
+    bind(inst: HazldInstance): EvaluationResult {
+        // Nest instance vars inside new function
+        const env = new Environment(this.closure);
+        env.define("this", inst);
+        return new HazldFunction(this.declaration, env);
     }
 }
 

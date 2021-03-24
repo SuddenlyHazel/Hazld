@@ -184,7 +184,7 @@ export class SetExpr extends Expr {
 }
 
 export class ThisExpr extends Expr {
-    constructor(public keyword: TokenType) {
+    constructor(public keyword: Token) {
         super(ExprType.ThisExpr)
     }
 
