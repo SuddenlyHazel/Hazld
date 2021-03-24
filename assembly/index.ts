@@ -4,6 +4,7 @@ import {AstPrinter} from "./ast/ast";
 import { Parser } from "./parser";
 import { Expr, Stmt } from './ast/ast_types';
 import {Interpreter} from "./interpreter/interpreter";
+import { Resolver } from './resolver';
 
 // The entry file of your WebAssembly module.
 class Hazld {
@@ -32,8 +33,6 @@ KEYWORDS.set("this", TokenType.THIS);
 KEYWORDS.set("true", TokenType.TRUE);
 KEYWORDS.set("var", TokenType.VAR);
 KEYWORDS.set("while", TokenType.WHILE);
-
-
 
 class Scanner {
   source: String;
@@ -214,8 +213,10 @@ export function parse(code: string) : string {
   let tokens = new Scanner(code).scanAllToken();
 
   let statements = new Parser(tokens).parse();
-
   let interp = new Interpreter();
+  let resolver = new Resolver(interp, true);
+  resolver.resolveStmts(statements);
+
   interp.interpret(statements);
 
   return '';

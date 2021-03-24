@@ -11,6 +11,7 @@ export abstract class BaseInterpreter {
     constructor(public globals : Environment) {}
 
     abstract evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null;
+    abstract resolve(expression : Expr, name : number) : void;
 }
 
 export enum ResultType {
@@ -62,6 +63,24 @@ export class Environment {
         }
 
         return new EvaluationResult();
+    }
+
+    getAt(distance : number, token : Token): EvaluationResult {
+        let env = <Environment>this;
+        for (let index = 0; index < distance; index++) {
+            env = <Environment>env.parentScope;
+        }
+
+        return env.get(token);
+    }
+
+    assignAt(distance : number, identifer: string, value: EvaluationResult): void {
+        let env = <Environment>this;
+        for (let index = 0; index < distance; index++) {
+            env = <Environment>env.parentScope;
+        }
+
+        env.assign(identifer, value);
     }
 }
 

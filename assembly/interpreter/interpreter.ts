@@ -11,6 +11,7 @@ import { foo } from "./builtins/index";
 
 export class Interpreter extends BaseInterpreter {
     // Stash built-ins,
+    private locals: Map<Expr, number> = new Map();
     private environment: Environment;
 
     constructor() {
@@ -28,7 +29,7 @@ export class Interpreter extends BaseInterpreter {
     }
 
     evaluateStatement(stmt: Stmt): EvaluationResult | null {
-        let result : EvaluationResult | null = null;
+        let result: EvaluationResult | null = null;
         switch (stmt.type) {
             case StmtType.ExpressionStmt:
                 this.evaluate((<ExpressionStmt>(stmt)).expression);
@@ -93,7 +94,7 @@ export class Interpreter extends BaseInterpreter {
         }
     }
 
-    evaluateVarExpression(stmt : VarExpressionStmt) : EvaluationResult | null {
+    evaluateVarExpression(stmt: VarExpressionStmt): EvaluationResult | null {
         let result = this.evaluateBlock(stmt.body.statements, new Environment(this.environment));
         if (result == null) {
             trace("Panic! No result returned from variable expression body");
@@ -103,7 +104,7 @@ export class Interpreter extends BaseInterpreter {
     };
 
     evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null {
-        var result : EvaluationResult | null = null;
+        var result: EvaluationResult | null = null;
         const previousEnv = this.environment;
         this.environment = localScope;
         for (let index = 0; index < stmts.length; index++) {
@@ -114,15 +115,12 @@ export class Interpreter extends BaseInterpreter {
                 break;
             }
         };
-        this.environment.debug();
         this.environment = previousEnv;
-        this.environment.debug();
         return result;
     };
 
     printStmt(stmt: PrintStmt): void {
         // Hazel TODO make this better
-        this.environment.debug();
         trace("Print is: " + this.evaluate(stmt.expression).toString());
     }
 
@@ -175,7 +173,7 @@ export class Interpreter extends BaseInterpreter {
             return new EvaluationResult();
         }
 
-        const callee : HazldCallable = <HazldCallable>calleeMaybe;
+        const callee: HazldCallable = <HazldCallable>calleeMaybe;
         if (args.length != callee.arity) {
             trace("Caller did not provide correct number of arguments!")
             return new EvaluationResult();
@@ -185,7 +183,15 @@ export class Interpreter extends BaseInterpreter {
     };
 
     handleVariable(expr: VariableExpr): EvaluationResult {
-        return <EvaluationResult>this.environment.get(expr.name);
+        return this.lookupVariable(expr, expr.name);
+    }
+
+    lookupVariable(expr: Expr, token: Token): EvaluationResult {
+        if (!this.locals.has(expr)) {
+            trace("Global!")
+            return this.globals.get(token);
+        }
+        return this.environment.getAt(this.locals.get(expr), token);
     }
 
     handleLogical(expr: LogicalExpr): EvaluationResult {
@@ -248,8 +254,18 @@ export class Interpreter extends BaseInterpreter {
     // Assign to existing in scope
     handleAssign(expr: AssignExpr): EvaluationResult {
         let value = this.evaluate(expr.value);
-        // Actually stash in mem here!
-        this.environment.assign(expr.name.lexme, value);
+
+        if (this.locals.has(expr)) {
+            this.environment.assignAt(this.locals.get(expr), expr.name.lexme, value);
+        } else {
+            // Actually stash in mem here!
+            this.environment.assign(expr.name.lexme, value);
+        }
         return value;
+    }
+
+    resolve(expression: Expr, depth: number): void {
+        this.locals.set(expression, depth)
+        trace("PANIC!! Not resolving yet!")
     }
 }
