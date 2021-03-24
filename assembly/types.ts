@@ -4,7 +4,6 @@ export namespace LiteralTypes {
   export const BOOLEAN = "boolean" // boolean
 }
 
-
 export enum ExprType {
   AssignExpr,
   BinaryExpr,
@@ -32,7 +31,6 @@ export enum StmtType {
   FunctionStmt,
   ReturnStmt
 }
-
 
 export type LiteralTypes = string;
 

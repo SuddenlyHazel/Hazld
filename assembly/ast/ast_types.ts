@@ -156,7 +156,7 @@ export class AssignExpr extends Expr {
 }
 
 export class GetExpr extends Expr {
-    constructor(public name: TokenType, public object: Expr) {
+    constructor(public name: Token, public object: Expr) {
         super(ExprType.GetExpr)
     }
 
@@ -170,7 +170,7 @@ export class GetExpr extends Expr {
 }
 
 export class SetExpr extends Expr {
-    constructor(public object: Expr, public name: TokenType, public value: Expr) {
+    constructor(public object: Expr, public name: Token, public value: Expr) {
         super(ExprType.SetExpr)
     }
 
@@ -262,7 +262,7 @@ export class BlockStmt extends Stmt {
 }
 
 export class ClassStmt extends Stmt {
-    constructor(public name: TokenType, public superclass: VariableExpr | null, public methods: FunctionStmt[]) {
+    constructor(public name: Token, public superclass: VariableExpr | null, public methods: FunctionStmt[]) {
         super(StmtType.ClassStmt)
     }
 

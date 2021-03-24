@@ -1,7 +1,12 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, FunctionStmt, GroupingExpr, IfStmt, LogicalExpr, PrintStmt, ReturnStmt, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { BaseInterpreter } from "./interpreter/interpreter_types";
 import { ExprType, StmtType } from "./types";
 
+enum FunctionType {
+    NONE,
+    FUNCTION,
+    METHOD
+}
 export class Resolver {
     scopes: Map<string, boolean>[] = [];
 
@@ -46,6 +51,9 @@ export class Resolver {
                 break;
             case (StmtType.WhileStmt):
                 this.resolveWhileStmt(<WhileStmt>stmt);
+                break;
+            case (StmtType.ClassStmt):
+                this.resolveClassStmt(<ClassStmt>stmt);
                 break;
         }
     }
@@ -96,14 +104,24 @@ export class Resolver {
         this.resolveStmt(stmt.body);
     }
 
+    resolveClassStmt(stmt: ClassStmt): void {
+        this.declare(stmt.name.lexme);
+        this.define(stmt.name.lexme);
+
+        for (let index = 0; index < stmt.methods.length; index++) {
+            const methodDec = stmt.methods[index];
+            this.resolveFunctionOrMethod(methodDec, FunctionType.METHOD);
+        }
+    };
+
     resolveFunctionStmt(stmt: FunctionStmt): void {
         this.declare(stmt.name.lexme);
         this.define(stmt.name.lexme);
-        this.resolveFunctionOrMethod(stmt);
+        this.resolveFunctionOrMethod(stmt, FunctionType.FUNCTION);
     }
 
     // Helper for Function and Methods
-    resolveFunctionOrMethod(func: FunctionStmt): void {
+    resolveFunctionOrMethod(func: FunctionStmt, type: FunctionType): void {
         this.beginScope();
         for (let index = 0; index < func.params.length; index++) {
             const param = func.params[index];
@@ -129,7 +147,7 @@ export class Resolver {
                 this.resolveCallExpr(<CallExpr>expr);
                 break;
             case ExprType.GetExpr:
-                this.debug("NYI")
+                this.resolveGetExpr(<GetExpr>expr);
                 break;
             case ExprType.GroupingExpr:
                 this.resolveGroupingExpr(<GroupingExpr>expr);
@@ -140,7 +158,7 @@ export class Resolver {
                 this.resolveLogicalExpr(<LogicalExpr>expr);
                 break;
             case ExprType.SetExpr:
-                this.debug("NYI");
+                this.resolveSetExpr(<SetExpr>expr);
                 break;
             case ExprType.SuperExpr:
                 this.debug("NYI");
@@ -187,6 +205,10 @@ export class Resolver {
         }
     }
 
+    resolveGetExpr(expr: GetExpr): void {
+        this.resolveExpr(expr.object);
+    };
+
     resolveGroupingExpr(expr: GroupingExpr): void {
         this.debug("Resolving Grouping Expr")
         this.resolveExpr(expr.expression);
@@ -196,6 +218,11 @@ export class Resolver {
         this.debug("Resolving Local Expr")
         this.resolveExpr(expr.left);
         this.resolveExpr(expr.right);
+    }
+
+    resolveSetExpr(expr: SetExpr): void {
+        this.resolveExpr(expr.value);
+        this.resolveExpr(expr.object);
     }
 
     resolveUnaryExpr(expr: UnaryExpr): void {

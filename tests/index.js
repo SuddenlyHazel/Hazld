@@ -2,15 +2,21 @@ const assert = require("assert");
 const myModule = require("..");
 
 const originalStr1 = `
-var a = "global";
-fun bad() {
-  print a;
-  var a = "first";
-  print a;
-  var a = "second";
-  return a;
+class Foo {
+  bar() {
+    return "baz";
+  }
 }
-print bad();
+
+print Foo;
+var a = Foo();
+
+fun doThing() {
+  print "wow!";
+}
+
+a.foo = doThing;
+print a.bar();
 `
 let foo = myModule.__getString(myModule.parse(myModule.__newString(originalStr1)));
 console.log(foo);

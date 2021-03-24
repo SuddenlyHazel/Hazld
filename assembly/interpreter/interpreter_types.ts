@@ -8,14 +8,14 @@ import {
 import { Interpreter } from "./interpreter";
 
 export abstract class BaseInterpreter {
-    constructor(public globals : Environment) {}
+    constructor(public globals: Environment) { }
 
     abstract evaluateBlock(stmts: Stmt[], localScope: Environment): EvaluationResult | null;
-    abstract resolve(expression : Expr, name : number) : void;
+    abstract resolve(expression: Expr, name: number): void;
 }
 
 export enum ResultType {
-    NUMBER, BOOLEAN, STRING, NIL,
+    NUMBER, BOOLEAN, STRING, NIL, CLASS
 }
 
 export class Environment {
@@ -28,7 +28,7 @@ export class Environment {
         let k = this.memory.keys();
         for (let index = 0; index < k.length; index++) {
             const key = k[index];
-            trace("key="+key+" value="+this.memory.get(key).toString());
+            trace("key=" + key + " value=" + this.memory.get(key).toString());
         }
     }
 
@@ -65,7 +65,7 @@ export class Environment {
         return new EvaluationResult();
     }
 
-    getAt(distance : number, token : Token): EvaluationResult {
+    getAt(distance: number, token: Token): EvaluationResult {
         let env = <Environment>this;
         for (let index = 0; index < distance; index++) {
             env = <Environment>env.parentScope;
@@ -74,7 +74,7 @@ export class Environment {
         return env.get(token);
     }
 
-    assignAt(distance : number, identifer: string, value: EvaluationResult): void {
+    assignAt(distance: number, identifer: string, value: EvaluationResult): void {
         let env = <Environment>this;
         for (let index = 0; index < distance; index++) {
             env = <Environment>env.parentScope;
@@ -86,7 +86,7 @@ export class Environment {
 
 export class EvaluationResult {
     constructor(public type: ResultType = ResultType.NIL) {
-        
+
     }
 
     isTruthy(): boolean {
@@ -109,6 +109,53 @@ export abstract class HazldCallable extends EvaluationResult {
     abstract call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult;
 }
 
+export class HazldInstance extends EvaluationResult {
+    private properties: Map<string, EvaluationResult> = new Map();
+
+    constructor(public klass: HazldClass) {
+        super();
+    }
+
+    toString(): string {
+        return this.klass.toString() + ' Instance';
+    }
+
+    get(name: string): EvaluationResult {
+        if (this.properties.has(name)) return this.properties.get(name);
+
+        const funcMaybe = this.klass.findMethod(name);
+
+        if (funcMaybe != null) return funcMaybe;
+        
+        return new EvaluationResult(ResultType.NIL);
+    }
+
+    set(name: string, value: EvaluationResult): void {
+        this.properties.set(name, value);
+    }
+}
+
+export class HazldClass extends HazldCallable {
+    constructor(public name: string, public methods : Map<string, HazldCallable>) {
+        super(0);
+    }
+
+    toString(): string {
+        return this.name;
+    }
+
+    call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult {
+        return new HazldInstance(this);
+    }
+
+    findMethod(name : string): HazldCallable | null {
+        if (this.methods.has(name)) {
+            return this.methods.get(name);
+        }
+        return null;
+    }
+}
+
 export abstract class BuiltInFunction extends HazldCallable {
     constructor(public identifier: string, arity: u8) {
         super(arity);
@@ -116,13 +163,13 @@ export abstract class BuiltInFunction extends HazldCallable {
 }
 
 export class HazldFunction extends HazldCallable {
-    public name : string;
+    public name: string;
     constructor(public declaration: FunctionStmt, public closure: Environment) {
         super(<u8>declaration.params.length);
         this.name = declaration.name.lexme;
     }
 
-    call(inter: BaseInterpreter, args: EvaluationResult[]) : EvaluationResult {
+    call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult {
         // New function scope
         const env = new Environment(this.closure);
         // Load all params

@@ -1,4 +1,4 @@
-import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, Expr, ExpressionStmt, FunctionStmt, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
+import { AssignExpr, BinaryExpr, BlockStmt, CallExpr, ClassStmt, Expr, ExpressionStmt, FunctionStmt, GetExpr, GroupingExpr, IfStmt, LiteralExpr, LogicalExpr, PrintStmt, ReturnStmt, SetExpr, Stmt, UnaryExpr, VarExpressionStmt, VariableExpr, VarStmt, WhileStmt } from "./ast/ast_types";
 import { ExprType, StmtType, Token, TokenType, ValuedToken } from "./types";
 
 export class Parser {
@@ -16,16 +16,19 @@ export class Parser {
         };
         return statements;
     }
+
     // Check for declarations [Var, Func, Class]
     declaration(): Stmt {
-        if (this.match([TokenType.FUN])){
-            return this.functionDeclarationStatement()
-        }
-        else if (this.match([TokenType.VAR])) {
+        if (this.match([TokenType.FUN])) {
+            return this.functionDeclarationStatement("function")
+        } else if (this.match([TokenType.VAR])) {
             return this.variableDeclarationStatement();
+        } else if (this.match([TokenType.CLASS])) {
+            return this.classDeclarationStatement();
         }
         return this.statement();
     }
+
     // Check for statements
     statement(): Stmt {
         // TODO
@@ -46,9 +49,9 @@ export class Parser {
         return this.expressionStatement();
     }
 
-    return() : Stmt {
+    return(): Stmt {
         const keyword = this.previous();
-        var value : Expr | null = null;
+        var value: Expr | null = null;
         if (!this.check(TokenType.SEMICOLON)) {
             value = this.expression();
         }
@@ -102,7 +105,7 @@ export class Parser {
         this.consume(TokenType.RIGHT_PAREN, "Expect ) after condition");
 
         const thenBranch = this.statement();
-        var elseBranch : Stmt | null = null;
+        var elseBranch: Stmt | null = null;
         if (this.match([TokenType.ELSE])) {
             elseBranch = this.statement();
         }
@@ -150,8 +153,19 @@ export class Parser {
         return new Stmt(StmtType.ReturnStmt);
     }
 
+    classDeclarationStatement(): Stmt {
+        const name = <Token>this.consume(TokenType.IDENTIFIER, "Expect name after class token");
+        this.consume(TokenType.LEFT_BRACE, "Expect { before class body");
+        const methods: FunctionStmt[] = []
+        while (!this.check(TokenType.RIGHT_BRACE) && !this.isAtEnd()) {
+            methods.push(<FunctionStmt>this.functionDeclarationStatement("method"))
+        }
+        this.consume(TokenType.RIGHT_BRACE, "Expect } after class body");
+        return new ClassStmt(name, null, methods);
+    }
+
     // Build a function declaration
-    functionDeclarationStatement(): Stmt {
+    functionDeclarationStatement(kind: string): Stmt {
         const name = this.consume(TokenType.IDENTIFIER, "Expect Function name");
         if (name == null) {
             return new Stmt(StmtType.ExpressionStmt);
@@ -159,7 +173,7 @@ export class Parser {
 
         this.consume(TokenType.LEFT_PAREN, "Expect ( after function name");
         // Build args
-        const params : Token[] = [];
+        const params: Token[] = [];
         if (!this.check(TokenType.RIGHT_PAREN)) {
             do {
                 const tokenMaybe = this.consume(TokenType.IDENTIFIER, "Expected Param name");
@@ -204,7 +218,8 @@ export class Parser {
                 const name = (<VariableExpr>(expr)).name;
                 return new AssignExpr(name, value);
             } else if (expr.type == ExprType.GetExpr) {
-                trace("ahh no gets yet")
+                const get = <GetExpr>expr;
+                return new SetExpr(get.object, get.name, value);
             }
 
             trace("Panic! invalid assignment" + equals.toString());
@@ -298,6 +313,9 @@ export class Parser {
         while (true) {
             if (this.match([TokenType.LEFT_PAREN])) {
                 expr = this.finishCall(expr);
+            } else if (this.match([TokenType.DOT])) {
+                const name = <Token>this.consume(TokenType.IDENTIFIER, "Expect property name after .");
+                expr = new GetExpr(name, expr);
             } else {
                 break;
             }
@@ -307,7 +325,7 @@ export class Parser {
     }
 
     finishCall(callee: Expr): Expr {
-        var allArgs : Expr[] = [];
+        var allArgs: Expr[] = [];
         if (!this.check(TokenType.RIGHT_PAREN)) {
             do {
                 allArgs.push(this.expression());
@@ -319,7 +337,7 @@ export class Parser {
             return callee;
         }
         return new CallExpr(callee, paren, allArgs);
-    }   
+    }
 
     // Handle Rest of Tokens
     primary(): Expr {

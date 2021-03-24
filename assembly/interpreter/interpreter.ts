@@ -1,11 +1,11 @@
 import {
     BinaryExpr, Expr, Stmt, GroupingExpr, LiteralExpr, LogicalExpr, UnaryExpr,
-    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr, VarExpressionStmt
+    ExpressionStmt, FunctionStmt, IfStmt, WhileStmt, ReturnStmt, BlockStmt, PrintStmt, AssignExpr, VarStmt, VariableExpr, CallExpr, VarExpressionStmt, ClassStmt, GetExpr, SetExpr
 } from "../ast/ast_types";
 import {
     LiteralTypes, Token, TokenType, ExprType, StmtType
 } from "../types";
-import { Environment, BaseInterpreter, HazldCallable, EvaluationResult, NumberResult, StringResult, BoolResult, ResultType, HazldFunction } from "./interpreter_types";
+import { Environment, BaseInterpreter, HazldCallable, EvaluationResult, NumberResult, StringResult, BoolResult, ResultType, HazldFunction, HazldClass, HazldInstance } from "./interpreter_types";
 
 import { foo } from "./builtins/index";
 
@@ -59,6 +59,7 @@ export class Interpreter extends BaseInterpreter {
                 result = this.returnStmt(<ReturnStmt>(stmt));
                 break;
             case StmtType.ClassStmt:
+                result = this.classStmt(<ClassStmt>stmt);
                 break;
         }
         return result;
@@ -82,7 +83,10 @@ export class Interpreter extends BaseInterpreter {
                 return this.handleVariable(<VariableExpr>expr);
             case ExprType.CallExpr:
                 return this.handleCall(<CallExpr>expr);
-                break;
+            case ExprType.GetExpr:
+                return this.handleGet(<GetExpr>expr);
+            case ExprType.SetExpr:
+                return this.handleSet(<SetExpr>expr);
         }
         return new EvaluationResult();
     }
@@ -155,6 +159,19 @@ export class Interpreter extends BaseInterpreter {
         return new EvaluationResult();
     };
 
+    classStmt(stmt: ClassStmt): EvaluationResult | null {
+        this.environment.define(stmt.name.lexme, new EvaluationResult());
+
+        const methods : Map<string, HazldCallable> = new Map();
+        for (let index = 0; index < stmt.methods.length; index++) {
+            const method = stmt.methods[index];
+            methods.set(method.name.lexme, new HazldFunction(method, this.environment));
+        }
+
+        this.environment.assign(stmt.name.lexme, new HazldClass(stmt.name.lexme, methods));
+        return null;
+    }
+
     isTruthy(expr: EvaluationResult): boolean {
         return expr.isTruthy();
     };
@@ -167,7 +184,6 @@ export class Interpreter extends BaseInterpreter {
             args.push(this.evaluate(expr.argument[index]));
         }
 
-        // Call Callee result here!!
         if (!(calleeMaybe instanceof HazldCallable)) {
             trace("Can only call functions and methods!")
             return new EvaluationResult();
@@ -182,13 +198,32 @@ export class Interpreter extends BaseInterpreter {
         return (<HazldCallable>callee).call(this, args);
     };
 
+    handleGet(expr: GetExpr): EvaluationResult {
+        const objectMaybe = this.evaluate(expr.object);
+        if (!(objectMaybe instanceof HazldInstance)) {
+            trace("PANIC! Only instances have properties");
+            return new EvaluationResult();
+        };
+        return (<HazldInstance>objectMaybe).get(expr.name.lexme);
+    };
+
+    handleSet(expr: SetExpr): EvaluationResult {
+        const objectMaybe = this.evaluate(expr.object);
+        if (!(objectMaybe instanceof HazldInstance)) {
+            trace("PANIC! Only instances have fields");
+            return new EvaluationResult();
+        }
+        const value = this.evaluate(expr.value);
+        (<HazldInstance>objectMaybe).set(expr.name.lexme, value);
+        return value;
+    }
+
     handleVariable(expr: VariableExpr): EvaluationResult {
         return this.lookupVariable(expr, expr.name);
     }
 
     lookupVariable(expr: Expr, token: Token): EvaluationResult {
         if (!this.locals.has(expr)) {
-            trace("Global!")
             return this.globals.get(token);
         }
         return this.environment.getAt(this.locals.get(expr), token);
@@ -249,7 +284,6 @@ export class Interpreter extends BaseInterpreter {
         }
         return new EvaluationResult();
     }
-
 
     // Assign to existing in scope
     handleAssign(expr: AssignExpr): EvaluationResult {
