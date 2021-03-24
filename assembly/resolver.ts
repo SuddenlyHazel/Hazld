@@ -7,8 +7,14 @@ enum FunctionType {
     FUNCTION,
     METHOD
 }
+
+enum ClassType {
+    NONE, CLASS,
+}
+
 export class Resolver {
     scopes: Map<string, boolean>[] = [];
+    currentClass : ClassType = ClassType.NONE;
 
     constructor(public interpreter: BaseInterpreter, public isDebug: boolean = false) {
     }
@@ -105,6 +111,9 @@ export class Resolver {
     }
 
     resolveClassStmt(stmt: ClassStmt): void {
+        const enclosingClass = this.currentClass;
+        this.currentClass = ClassType.CLASS;
+
         this.declare(stmt.name.lexme);
         this.define(stmt.name.lexme);
 
@@ -115,6 +124,7 @@ export class Resolver {
             this.resolveFunctionOrMethod(methodDec, FunctionType.METHOD);
         }
         this.endScope();
+        this.currentClass = enclosingClass;
     };
 
     resolveFunctionStmt(stmt: FunctionStmt): void {
@@ -229,6 +239,9 @@ export class Resolver {
     }
 
     resolveThisExpr(expr: ThisExpr): void {
+        if (this.currentClass == ClassType.NONE) {
+            return;
+        }
         this.resolveLocal(expr, expr.keyword.lexme);
     }
 

@@ -103,10 +103,11 @@ export class EvaluationResult {
 };
 
 export abstract class HazldCallable extends EvaluationResult {
-    constructor(public arity: u8) {
+    constructor() {
         super();
     };
     abstract call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult;
+    abstract arity(): u8;
 }
 
 export class HazldInstance extends EvaluationResult {
@@ -137,7 +138,7 @@ export class HazldInstance extends EvaluationResult {
 
 export class HazldClass extends HazldCallable {
     constructor(public name: string, public methods: Map<string, HazldCallable>) {
-        super(0);
+        super();
     }
 
     toString(): string {
@@ -145,7 +146,12 @@ export class HazldClass extends HazldCallable {
     }
 
     call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult {
-        return new HazldInstance(this);
+        const initFunc = this.findMethod("init");
+        const instance = new HazldInstance(this);
+        if (initFunc != null) {
+            (<HazldFunction>initFunc).bind(instance).call(inter, args);
+        }
+        return instance;
     }
 
     findMethod(name: string): HazldCallable | null {
@@ -154,19 +160,35 @@ export class HazldClass extends HazldCallable {
         }
         return null;
     }
+
+    arity(): u8 {
+        if (!this.methods.has("init")) {
+            return 0;
+        }
+        const initMaybe = this.methods.get("init");
+        return initMaybe.arity();
+    }
 }
 
 export abstract class BuiltInFunction extends HazldCallable {
-    constructor(public identifier: string, arity: u8) {
-        super(arity);
+    constructor(public identifier: string, public funcArity: u8) {
+        super();
+    }
+
+    arity(): u8 {
+        return this.funcArity;
     }
 }
 
 export class HazldFunction extends HazldCallable {
     public name: string;
     constructor(public declaration: FunctionStmt, public closure: Environment) {
-        super(<u8>declaration.params.length);
+        super();
         this.name = declaration.name.lexme;
+    }
+
+    arity(): u8 {
+        return <u8>this.declaration.params.length
     }
 
     call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult {
@@ -184,7 +206,7 @@ export class HazldFunction extends HazldCallable {
         return new EvaluationResult();
     }
 
-    bind(inst: HazldInstance): EvaluationResult {
+    bind(inst: HazldInstance): HazldFunction {
         // Nest instance vars inside new function
         const env = new Environment(this.closure);
         env.define("this", inst);

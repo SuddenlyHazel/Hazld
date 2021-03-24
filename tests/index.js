@@ -2,7 +2,6 @@ const assert = require("assert");
 const myModule = require("..");
 
 const originalStr1 = `
-
 class Cake {
   taste() {
     var adjective = "delicious";

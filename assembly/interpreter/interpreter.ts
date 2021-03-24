@@ -192,7 +192,7 @@ export class Interpreter extends BaseInterpreter {
         }
 
         const callee: HazldCallable = <HazldCallable>calleeMaybe;
-        if (args.length != callee.arity) {
+        if (args.length != callee.arity()) {
             trace("Caller did not provide correct number of arguments!")
             return new EvaluationResult();
         }
