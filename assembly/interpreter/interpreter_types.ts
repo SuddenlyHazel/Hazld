@@ -98,7 +98,7 @@ export class EvaluationResult {
     }
 
     toString(): string {
-        return '';
+        return 'Unknown Type';
     }
 };
 
@@ -108,6 +108,10 @@ export abstract class HazldCallable extends EvaluationResult {
     };
     abstract call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult;
     abstract arity(): u8;
+
+    toString(): string {
+        return 'Callable Type';
+    }
 }
 
 export class HazldInstance extends EvaluationResult {
@@ -137,7 +141,7 @@ export class HazldInstance extends EvaluationResult {
 }
 
 export class HazldClass extends HazldCallable {
-    constructor(public name: string, public methods: Map<string, HazldCallable>) {
+    constructor(public name: string, public methods: Map<string, HazldCallable>, public staticMethods: Map<string, HazldCallable>) {
         super();
     }
 
@@ -145,6 +149,7 @@ export class HazldClass extends HazldCallable {
         return this.name;
     }
 
+    // create class instance from a class def (this)
     call(inter: BaseInterpreter, args: EvaluationResult[]): EvaluationResult {
         const initFunc = this.findMethod("init");
         const instance = new HazldInstance(this);
@@ -154,9 +159,25 @@ export class HazldClass extends HazldCallable {
         return instance;
     }
 
+    get(name : string): EvaluationResult {
+        const staticMethod = this.findStaticMethod(name);
+        if (staticMethod != null) {
+            return <HazldCallable>staticMethod;
+        }
+
+        return new EvaluationResult();
+    }
+
     findMethod(name: string): HazldCallable | null {
         if (this.methods.has(name)) {
             return this.methods.get(name);
+        }
+        return null;
+    }
+
+    findStaticMethod(name: string): HazldCallable | null {
+        if (this.staticMethods.has(name)) {
+            return this.staticMethods.get(name);
         }
         return null;
     }
@@ -182,7 +203,7 @@ export abstract class BuiltInFunction extends HazldCallable {
 
 export class HazldFunction extends HazldCallable {
     public name: string;
-    constructor(public declaration: FunctionStmt, public closure: Environment) {
+    constructor(public declaration: FunctionStmt, public closure: Environment, public isInitializer: boolean) {
         super();
         this.name = declaration.name.lexme;
     }
@@ -203,6 +224,8 @@ export class HazldFunction extends HazldCallable {
         if (valueMaybe != null) {
             return <EvaluationResult>valueMaybe;
         }
+
+        if(this.isInitializer) return this.closure.get(new Token(TokenType.THIS, "this", 0));
         return new EvaluationResult();
     }
 
@@ -210,7 +233,7 @@ export class HazldFunction extends HazldCallable {
         // Nest instance vars inside new function
         const env = new Environment(this.closure);
         env.define("this", inst);
-        return new HazldFunction(this.declaration, env);
+        return new HazldFunction(this.declaration, env, this.isInitializer);
     }
 }
 

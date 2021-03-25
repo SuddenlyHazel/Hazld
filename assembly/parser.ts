@@ -157,11 +157,18 @@ export class Parser {
         const name = <Token>this.consume(TokenType.IDENTIFIER, "Expect name after class token");
         this.consume(TokenType.LEFT_BRACE, "Expect { before class body");
         const methods: FunctionStmt[] = []
+        const staticMethod: FunctionStmt[] = [];
+
         while (!this.check(TokenType.RIGHT_BRACE) && !this.isAtEnd()) {
-            methods.push(<FunctionStmt>this.functionDeclarationStatement("method"))
+            if (this.check(TokenType.STATIC)) {
+                this.consume(TokenType.STATIC, ""); // eat the static
+                staticMethod.push(<FunctionStmt>this.functionDeclarationStatement("staticMethod"));
+                continue;
+            }
+            methods.push(<FunctionStmt>this.functionDeclarationStatement("method"));
         }
         this.consume(TokenType.RIGHT_BRACE, "Expect } after class body");
-        return new ClassStmt(name, null, methods);
+        return new ClassStmt(name, null, methods, staticMethod);
     }
 
     // Build a function declaration

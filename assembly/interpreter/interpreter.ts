@@ -150,7 +150,7 @@ export class Interpreter extends BaseInterpreter {
     }
 
     functionStmt(stmt: FunctionStmt): void {
-        let func = new HazldFunction(stmt, this.environment);
+        let func = new HazldFunction(stmt, this.environment, false);
         this.environment.define(stmt.name.lexme, func);
     };
 
@@ -167,10 +167,16 @@ export class Interpreter extends BaseInterpreter {
         const methods: Map<string, HazldCallable> = new Map();
         for (let index = 0; index < stmt.methods.length; index++) {
             const method = stmt.methods[index];
-            methods.set(method.name.lexme, new HazldFunction(method, this.environment));
+            methods.set(method.name.lexme, new HazldFunction(method, this.environment, method.name.lexme == "init"));
         }
 
-        this.environment.assign(stmt.name.lexme, new HazldClass(stmt.name.lexme, methods));
+        const staticMethods: Map<string, HazldCallable> = new Map();
+        for (let index = 0; index < stmt.staticMethods.length; index++) {
+            const staticMethod = stmt.staticMethods[index];
+            staticMethods.set(staticMethod.name.lexme, new HazldFunction(staticMethod, this.environment, staticMethod.name.lexme == "init"));
+        }
+
+        this.environment.assign(stmt.name.lexme, new HazldClass(stmt.name.lexme, methods, staticMethods));
         return null;
     }
 
@@ -179,6 +185,7 @@ export class Interpreter extends BaseInterpreter {
     };
 
     handleCall(expr: CallExpr): EvaluationResult {
+        trace(expr.callee.toString());
         const calleeMaybe = this.evaluate(expr.callee);
 
         const args: EvaluationResult[] = [];
@@ -187,6 +194,7 @@ export class Interpreter extends BaseInterpreter {
         }
 
         if (!(calleeMaybe instanceof HazldCallable)) {
+            trace(calleeMaybe.toString())
             trace("Can only call functions and methods!")
             return new EvaluationResult();
         }
@@ -202,11 +210,17 @@ export class Interpreter extends BaseInterpreter {
 
     handleGet(expr: GetExpr): EvaluationResult {
         const objectMaybe = this.evaluate(expr.object);
-        if (!(objectMaybe instanceof HazldInstance)) {
-            trace("PANIC! Only instances have properties");
-            return new EvaluationResult();
-        };
-        return (<HazldInstance>objectMaybe).get(expr.name.lexme);
+
+        if (objectMaybe instanceof HazldInstance) {
+            return (<HazldInstance>objectMaybe).get(expr.name.lexme);
+        }
+        
+        if (objectMaybe instanceof HazldClass) {
+            return (<HazldClass>objectMaybe).get(expr.name.lexme);
+        }
+
+        trace("PANIC! Only instances have properties");
+        return new EvaluationResult();
     };
 
     handleThis(expr: ThisExpr): EvaluationResult {

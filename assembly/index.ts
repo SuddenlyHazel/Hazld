@@ -33,6 +33,8 @@ KEYWORDS.set("this", TokenType.THIS);
 KEYWORDS.set("true", TokenType.TRUE);
 KEYWORDS.set("var", TokenType.VAR);
 KEYWORDS.set("while", TokenType.WHILE);
+KEYWORDS.set("static", TokenType.STATIC);
+
 
 class Scanner {
   source: String;
@@ -137,7 +139,6 @@ class Scanner {
     const text = this.source.substring(this.start, this.current);
 
     let type = KEYWORDS.has(text) ? KEYWORDS.get(text) : TokenType.IDENTIFIER;
-
     this.addToken(type);
   }
 

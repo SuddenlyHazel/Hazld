@@ -80,6 +80,7 @@ export namespace TokenType {
     export const TRUE = "TRUE"; 
     export const VAR = "VAR"; 
     export const WHILE = "WHILE";
+    export const STATIC = "STATIC";
   
     export const EOF = "EOF";
   }

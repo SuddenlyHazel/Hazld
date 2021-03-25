@@ -262,7 +262,7 @@ export class BlockStmt extends Stmt {
 }
 
 export class ClassStmt extends Stmt {
-    constructor(public name: Token, public superclass: VariableExpr | null, public methods: FunctionStmt[]) {
+    constructor(public name: Token, public superclass: VariableExpr | null, public methods: FunctionStmt[], public staticMethods: FunctionStmt[]) {
         super(StmtType.ClassStmt)
     }
 

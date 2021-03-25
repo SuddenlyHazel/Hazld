@@ -5,7 +5,8 @@ import { ExprType, StmtType } from "./types";
 enum FunctionType {
     NONE,
     FUNCTION,
-    METHOD
+    METHOD,
+    INITIALIZER
 }
 
 enum ClassType {
@@ -15,6 +16,7 @@ enum ClassType {
 export class Resolver {
     scopes: Map<string, boolean>[] = [];
     currentClass : ClassType = ClassType.NONE;
+    functionType : FunctionType = FunctionType.NONE;
 
     constructor(public interpreter: BaseInterpreter, public isDebug: boolean = false) {
     }
@@ -101,7 +103,11 @@ export class Resolver {
     resolveReturnStmt(stmt: ReturnStmt): void {
         if (stmt.value == null) {
             return;
+        } else if (this.functionType == FunctionType.INITIALIZER) {
+            // Hzl TODO Explode if trying to return a value from init.
+            return;
         }
+
         this.resolveExpr(<Expr>stmt.value);
     }
 
@@ -117,20 +123,33 @@ export class Resolver {
         this.declare(stmt.name.lexme);
         this.define(stmt.name.lexme);
 
+
+        // Scope Methods
         this.beginScope();
         this.peekScope().set("this", true); // this is valid within class
         for (let index = 0; index < stmt.methods.length; index++) {
             const methodDec = stmt.methods[index];
-            this.resolveFunctionOrMethod(methodDec, FunctionType.METHOD);
+            this.functionType = methodDec.name.lexme == "init" ? FunctionType.INITIALIZER : FunctionType.METHOD
+            this.resolveFunctionOrMethod(methodDec, this.functionType);
         }
         this.endScope();
+
+        // Scope Static Methods
+        this.beginScope();
+        for (let index = 0; index < stmt.staticMethods.length; index++) {
+            const methodDec = stmt.staticMethods[index];
+            this.resolveFunctionOrMethod(methodDec, this.functionType);
+        }
+        this.endScope();
+
         this.currentClass = enclosingClass;
     };
 
     resolveFunctionStmt(stmt: FunctionStmt): void {
         this.declare(stmt.name.lexme);
         this.define(stmt.name.lexme);
-        this.resolveFunctionOrMethod(stmt, FunctionType.FUNCTION);
+        this.functionType = FunctionType.FUNCTION;
+        this.resolveFunctionOrMethod(stmt, this.functionType);
     }
 
     // Helper for Function and Methods
