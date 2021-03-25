@@ -2,9 +2,10 @@ import {TokenType, Token, ValuedToken} from './types';
 import "./ast/ast_types";
 import {AstPrinter} from "./ast/ast";
 import { Parser } from "./parser";
-import { Expr, Stmt } from './ast/ast_types';
+import { Expr, PrintStmt, Stmt } from './ast/ast_types';
 import {Interpreter} from "./interpreter/interpreter";
 import { Resolver } from './resolver';
+import { NumberValue, OpCodeType, OpcodeValue, VM, VMValue } from './vm';
 
 // The entry file of your WebAssembly module.
 class Hazld {
@@ -231,4 +232,18 @@ export function main(args: Array<string>): void {
   } else {
     // repl
   }
+}
+
+
+export function run(): void {
+  const instructions : VMValue[] = [
+    new OpcodeValue(OpCodeType.PUSH),
+    new NumberValue(123),
+    new OpcodeValue(OpCodeType.PRINT)
+  ];
+  const stack : VMValue[] = [];
+
+  const vm : VM = new VM(instructions, stack, 0);
+
+  vm.run();
 }

@@ -20,7 +20,9 @@ var foo = Foo("test");
 print foo.test();
 print Foo.noodles();
 `
-let foo = myModule.__getString(myModule.parse(myModule.__newString(originalStr1)));
-console.log(foo);
+//let foo = myModule.__getString(myModule.parse(myModule.__newString(originalStr1)));
+//console.log(foo);
+
+myModule.run()
 
 console.log("ok");
