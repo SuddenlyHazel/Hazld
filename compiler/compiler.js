@@ -18,7 +18,8 @@ Hazld {
     	= var identifier "=" Expr ";" --varDecl
         
     FunDecl
-    	= fun identifier BlockExpr --fun
+        = fun identifier "(" ListOf<identifier, ","> ")" BlockExpr --fun
+
         
     // Statements
     Stmt
@@ -75,8 +76,12 @@ Hazld {
       | MulExpr
     
     MulExpr 
-      = MulExpr "*" PrimaryExpr --mul
-      | MulExpr "/" PrimaryExpr --div
+      = MulExpr "*" CallExpr --mul
+      | MulExpr "/" CallExpr --div
+      | CallExpr
+      
+    CallExpr
+      = identifier "(" ListOf<Expr, ","> ")" --call
       | PrimaryExpr
     
     PrimaryExpr 
@@ -105,6 +110,16 @@ Hazld {
 const semantics = myGrammar.createSemantics();
 
 semantics.addOperation('getValue()', {
+    NonemptyListOf(a, _seps, c) {
+        const out = [a.getValue()];
+        for (const otherArg of c.getValue()) {
+            out.push(otherArg);
+        }
+        return out
+    },
+    EmptyListOf() {
+        return []
+    },
     identifier(v) {
         return this.sourceString;
     },
@@ -132,28 +147,28 @@ class LabelResolver {
         this.counter = 0;
     }
 
-    // add a label to backfill
-    // ptr = where it is in stack
-    // labelName = who it's looking for
-    addTodo(ptr, labelName) {
-        this.todos({
-            ptr: ptr,
-            label: labelName
-        })
+    // For use in Back Processing
+    resolveLabelInByteCode(height, name) {
+        this.label_lut[name] = height;
     }
 
-    // create a new label
-    createLabel(ptr) {
-        const name = "@" + this.counter;
-        this.label_lut[name] = ptr;
-        this.counter += 1;
-        return this.name;
+    resolveLabelReference(name) {
+        return this.label_lut[name];
     }
 
-    reserveLabel() {
-        const name = "@" + this.counter;
-        this.counter += 1;
-        return name;
+    // For use in Compiling
+    createLabelReferenceOp(ptr, name) {
+        return {
+            "type": LABEL_REFERENCE,
+            "value": name
+        }
+    }
+
+    createLabelOp(name) {
+        return {
+            "type": LABEL,
+            "name": name
+        }
     }
 }
 
@@ -211,10 +226,12 @@ class ScopeResolver {
         // Start with global
         this.scopes = [new Scope()]
     }
+
     enterBlock() {
         console.info("Entering New Scope")
         this.scopes.push(new Scope());
     }
+
     leaveBlock() {
         if (this.scopes.length == 1) {
             console.warm("Tried to pop global scope.")
@@ -244,56 +261,54 @@ class ScopeResolver {
     }
 }
 
-function getSemantics(program, labelResolver, scopeResolver) {
+function getSemantics(compiler, scopeResolver) {
     return {
         ExprStmt(a, _term) {
             a.doBuild();
         },
         PrimaryExpr_number(_) {
             console.log(this.sourceString)
-            program.push(getPair(ValueType.OP_CODE, OpCodes.PUSH))
-            program.push(getPair(ValueType.NUMBER, parseFloat(this.sourceString)))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.PUSH))
+            compiler.compileSlice(getPair(ValueType.NUMBER, parseFloat(this.sourceString)))
         },
         AddExpr_add(a, op, b) {
             a.doBuild();
             b.doBuild();
             console.log("+")
-            program.push(getPair(ValueType.OP_CODE, OpCodes.ADD))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.ADD))
         },
         AddExpr_sub(a, op, b) {
             a.doBuild();
             b.doBuild();
             console.log("-")
-            program.push(getPair(ValueType.OP_CODE, OpCodes.SUB))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.SUB))
         },
         MulExpr_mul(a, op, b) {
             a.doBuild();
             b.doBuild();
             console.log("*")
-            program.push(getPair(ValueType.OP_CODE, OpCodes.MUL))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.MUL))
         },
         MulExpr_div(a, op, b) {
             a.doBuild();
             b.doBuild();
             console.log("/")
-            program.push(getPair(ValueType.OP_CODE, OpCodes.DIV))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.DIV))
         },
         VarDecl_varDecl(_tkn, name, _, value, _term) {
             value.doBuild();
-            program.push(getPair(ValueType.OP_CODE, OpCodes.STORE))
-            const varName = name.getValue();
-            console.log("STORE " + varName)
-            scopeResolver.declareVariable(varName);
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.STORE))
+            compiler.compileSlice(getPair(ValueType.STRING, name.getValue()))
         },
         VarAssignStmt(name, op, value, _term) {
             console.log(name.sourceString)
             value.doBuild();
-            program.push(getPair(ValueType.OP_CODE, OpCodes.ASSIGN))
-            program.push(getPair(ValueType.STRING, name.sourceString))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.ASSIGN))
+            compiler.compileSlice(getPair(ValueType.STRING, name.sourceString))
         },
         PrintStmt(_token, expr, _term) {
             expr.doBuild();
-            program.push(getPair(ValueType.OP_CODE, OpCodes.PRINT))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.PRINT))
             console.log("PRINT")
         },
         IfStmt(_tkn, _l, expr, _r, block) {
@@ -301,43 +316,46 @@ function getSemantics(program, labelResolver, scopeResolver) {
 
             console.log("IF")
 
-            program.push(getPair(ValueType.OP_CODE, OpCodes.IF))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.IF))
+            const afterPtrStart = compiler.compileSlice(getPair(ValueType.ADDRESS, 0)) - 5 // after
+            compiler.compileSlice(getPair(ValueType.ADDRESS, afterPtrStart + 5)) // block
 
-            const blockStartLabel = labelResolver.reserveLabel();
-            const blockEndLabel = labelResolver.reserveLabel();
-
-            program.push(getLabelReference(blockStartLabel));
-            program.push(getLabelReference(blockEndLabel));
-
-            program.push(getLabel(blockStartLabel))
-            block.doBuild(); // Backfill address
-            program.push(getLabel(blockEndLabel))
+            block.doBuild();
+            compiler.backProcessAddress(afterPtrStart)
         },
         BlockExpr(_l, prog, _r, _term) {
-            program.push(getPair(ValueType.OP_CODE, OpCodes.SCOPE_START))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.SCOPE_START))
             scopeResolver.enterBlock();
             prog.doBuild();
-            program.push(getPair(ValueType.OP_CODE, OpCodes.SCOPE_END))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.SCOPE_END))
             scopeResolver.leaveBlock();
-            program.push("FRAME_END")
         },
         EqExpr_eq(left, _op, right) {
             left.doBuild();
             right.doBuild();
-            program.push(getPair(ValueType.OP_CODE, OpCodes.EQ));
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.EQ));
             console.log("EQ?", OpCodes.EQ)
         },
-        FunDecl_fun(_tkn, name, block) {
-            console.log(name.sourceString)
-            program.push(getPair(ValueType.OP_CODE, OpCodes.JMP));
-
-            const blockEndLabel = labelResolver.reserveLabel();
-            program.push(getLabelReference(blockEndLabel));
+        FunDecl_fun(_tkn, name, _l, args, _r, block) {
+            console.log(args.getValue())
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.FUN));
+            compiler.compileSlice(getPair(ValueType.STRING, name.getValue())); // Pack name
+            compiler.compileSlice(getPair(ValueType.ADDRESS, args.getValue().length)); // Pack arity
+            for (const arg of args.getValue()) { // Pack all args
+                compiler.compileSlice(getPair(ValueType.STRING, arg));
+            }
+            const endPointer = compiler.compileSlice(getPair(ValueType.ADDRESS, 0)) - 5 // Pack End Placeholder
 
             block.doBuild();
 
-            program.push(getLabel(blockEndLabel))
-
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.FUN_END))
+            compiler.backProcessAddress(endPointer)
+        },
+        CallExpr_call(name, _l, expr, _r) {
+            expr.doBuild();
+            console.log(name.getValue);
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.CALL));
+            compiler.compileSlice(getPair(ValueType.STRING, name.getValue())); // Pack name
         },
         PrimaryExpr_paren(_l, expr, _r) {
             expr.doBuild();
@@ -345,8 +363,12 @@ function getSemantics(program, labelResolver, scopeResolver) {
         PrimaryExpr_identifier(v) {
             const value = v.getValue();
             console.log("LOAD " + value)
-            program.push(getPair(ValueType.OP_CODE, OpCodes.LOAD))
-            program.push(getPair(ValueType.NUMBER, scopeResolver.getVariable(value), true))
+            compiler.compileSlice(getPair(ValueType.OP_CODE, OpCodes.LOAD))
+            compiler.compileSlice(getPair(ValueType.STRING, value))
+        },
+        NonemptyListOf(ex, _seps, rest) {
+            ex.doBuild()
+            rest.doBuild()
         }
     }
 }
@@ -355,90 +377,75 @@ class Compiler {
 
     constructor(programString) {
         this.programString = programString;
-        this.program = [];
+        this.program = []; // OPS
         this.labelResolver = new LabelResolver();
+        this.programBytes = []; // ByteCode
     }
 
     compile() {
         const m = myGrammar.match(this.programString);
         const adapter = semantics(m);
-        semantics.addOperation("doBuild", getSemantics(this.program, this.labelResolver, new ScopeResolver()));
+        semantics.addOperation("doBuild", getSemantics(this, new ScopeResolver()));
         adapter.doBuild();
-        this.program.push(OpCodes.EOF);
-
-        return this._getCompiledProgram();
+        //this.program.push(OpCodes.EOF); ADD EOF!!
+        return [this.programBytes, this.program]
     }
 
-    _getCompiledProgram() {
-        const programBytes = [];
-        const labels = {};
-        const backfill_labels = [];
-
-        for (const op of this.program) {
-            if (op.type == LABEL) {
-                labels[op.value] = {
-                    height: programBytes.length,
-                    value: new Uint8Array(new Uint32Array([programBytes.length]).buffer)
-                };
-                console.log(labels[op.value])
-                continue;
-            }
-
-            if (op.type == LABEL_REFERENCE) {
-                backfill_labels.push({
-                    ptr: programBytes.length,
-                    label: op.value
-                })
-                this._packAddressPlaceholder(programBytes);
-                console.log("Adding Ref")
-                continue;
-            }
-
-            switch (op.type) {
-                case (ValueType.OP_CODE):
-                    this._packOpCode(op.value, programBytes)
-                    break;
-                case (ValueType.NUMBER):
-                    if (op.raw) {
-                        this._packNumberRaw(op.value, programBytes)
-                    } else {
-                        this._packNumber(op.value, programBytes)
-                    }
-                    break;
-                case (ValueType.STRING):
-                    this._packString(op.value, programBytes)
-                    break;
-            }
+    compileSlice(op) {
+        this.program.push(op);
+        switch (op.type) {
+            case (ValueType.OP_CODE):
+                this.packOpCode(op.value, this.programBytes)
+                break;
+            case (ValueType.NUMBER):
+                if (op.raw) {
+                    this.packNumberRaw(op.value, this.programBytes)
+                } else {
+                    this.packNumber(op.value, this.programBytes)
+                }
+                break;
+            case (ValueType.STRING):
+                this.packString(op.value, this.programBytes)
+                break;
+            case (ValueType.ADDRESS):
+                this.packAddress(op.value, this.programBytes)
+                break;
         }
-
-        for (const placeholder of backfill_labels) {
-            const resolvedLabel = labels[placeholder.label];
-            if (resolvedLabel == null) {
-                throw new Error("Referenced a label which was not set")
-            }
-            console.log(placeholder)
-            for (let index = 0; index < 4; index++) {
-                programBytes[placeholder.ptr + index] = resolvedLabel.value[index];
-            }
-        }
-        return programBytes;
+        return this.programBytes.length;
     }
 
-    // 32 Bit Addresses
-    _packAddressPlaceholder(payload) {
-        const placeholder = new Uint32Array([0]);
-        const packedPlaceholder = new Uint8Array(placeholder.buffer);
-        payload.push(packedPlaceholder[0], packedPlaceholder[1], packedPlaceholder[2], packedPlaceholder[3]);
+    // Given a Ptr backfill with the current height
+    backProcessAddress(ptr) {
+        const numberBytes = []
+        this.packAddress(this.getHeight(), numberBytes);
+        for (let index = 1; index < 5; index++) {
+            console.log("STEP", ptr + index)
+            this.programBytes[ptr + index] = numberBytes[index]
+        }
+    }
+
+    getHeight() {
+        return this.programBytes.length;
     }
 
     // OPCODES (type, code) -> (UINT8, UINT8)
-    _packOpCode(code, payload) {
+    packOpCode(code, payload) {
         payload.push(ValueType.OP_CODE);
         payload.push(code);
     }
 
+    // Address (type, value) -> (UINT8, UINT32)
+    packAddress(value, payload) {
+        payload.push(ValueType.ADDRESS);
+
+        const placeholder = new Uint32Array([value]);
+        const packedPlaceholder = new Uint8Array(placeholder.buffer);
+        payload.push(packedPlaceholder[0], packedPlaceholder[1], packedPlaceholder[2], packedPlaceholder[3]);
+
+    }
+
     // Number (type, value) -> (UINT8, F64)
-    _packNumber(value, payload) {
+    packNumber(value, payload) {
         const code = new Uint8Array([ValueType.NUMBER]);
 
         const floatBytes = new Float64Array([value]);
@@ -450,7 +457,7 @@ class Compiler {
         payload.push(packedNumber[4], packedNumber[5], packedNumber[6], packedNumber[7]);
     }
 
-    _packNumberRaw(value, payload) {
+    packNumberRaw(value, payload) {
         const floatBytes = new Float64Array([value]);
         var packedNumber = new Uint8Array(floatBytes.buffer);
         payload.push(packedNumber[0], packedNumber[1], packedNumber[2], packedNumber[3]);
@@ -458,9 +465,12 @@ class Compiler {
     }
 
     // STRING (type, size, bytes ..) UINT8, UINT32, UInt16
-    _packString(str, payload) {
+    packString(str, payload) {
+        console.log("%%%", str)
         const code = new Uint8Array([ValueType.STRING]);
+
         const length = new Uint8Array(new Uint32Array([str.length]).buffer);
+        console.log("%%%", length)
 
         var buf = new ArrayBuffer(str.length * 2);
         var bufView = new Uint16Array(buf);
@@ -471,7 +481,6 @@ class Compiler {
         const packedString = new Uint8Array(bufView.buffer);
 
         payload.push(code[0]);
-        console.log(length)
         payload.push(length[0], length[1], length[2], length[3]);
 
         for (let index = 0; index < packedString.byteLength; index++) {

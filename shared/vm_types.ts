@@ -16,9 +16,12 @@ export namespace OpCodes {
 
     export const IF = 50;
     export const JMP = 51;
+    export const CALL = 52;
 
     export const STORE = 60;
     export const ASSIGN = 61; 
+    export const FUN = 62;
+    export const FUN_END = 63;
 
     export const PRINT = 70;
 
@@ -32,4 +35,5 @@ export namespace ValueType {
     export const OP_CODE = 0;
     export const NUMBER = 1;
     export const STRING = 2;
+    export const ADDRESS = 3;
 }

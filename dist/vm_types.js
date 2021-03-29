@@ -16,8 +16,11 @@ var OpCodes;
     OpCodes.LTE = 44;
     OpCodes.IF = 50;
     OpCodes.JMP = 51;
+    OpCodes.CALL = 52;
     OpCodes.STORE = 60;
     OpCodes.ASSIGN = 61;
+    OpCodes.FUN = 62;
+    OpCodes.FUN_END = 63;
     OpCodes.PRINT = 70;
     OpCodes.SCOPE_START = 80;
     OpCodes.SCOPE_END = 81;
@@ -28,5 +31,6 @@ var ValueType;
     ValueType.OP_CODE = 0;
     ValueType.NUMBER = 1;
     ValueType.STRING = 2;
+    ValueType.ADDRESS = 3;
 })(ValueType = exports.ValueType || (exports.ValueType = {}));
 //# sourceMappingURL=vm_types.js.map

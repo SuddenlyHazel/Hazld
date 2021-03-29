@@ -5,14 +5,17 @@ const { Compiler } = require("../compiler/compiler");
 const memory = myModule.memory;
 const wasmByteMemoryArray = new Uint8Array(memory.buffer);
 const program = `
-var foo = 10;
-var bar = 123;
-print foo + bar;
+fun test(a, b) {
+  print a;
+  print b;
+};
+
+test(1, 100);
 `;
 
 
 const compiler = new Compiler(program);
-const progBytes = compiler.compile();
+const progBytes = compiler.compile()[0]
 console.log("PROGRAM: ", progBytes)
 const arrayPtr = myModule.__newArray(myModule.PROG_ARRAY, progBytes)
 
